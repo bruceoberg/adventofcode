@@ -1,7 +1,6 @@
 import os
-import sys
 
-pathThis = sys.argv[0]
+pathThis = os.path.realpath(__file__)
 pathBase, ext = os.path.splitext(pathThis)
 pathInput = pathBase + '.txt'
 
