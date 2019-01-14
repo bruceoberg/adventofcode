@@ -1,63 +1,180 @@
 import re
+from collections import namedtuple
 
 aDayInDayFn = (
 #	(0, '000'),
-	(5, '055'),
+	(6, '065'),
 )
 
-def CChDay5Eater(strIn):
-	setChChEat = \
-		set(zip('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
-				'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'))
-				
-	cChProgMod = 1000
-	cChProg = len(strIn) - (len(strIn) % cChProgMod)
-	
-	iCh = 0
-	while iCh < len(strIn) - 1:
-		chch = (strIn[iCh], strIn[iCh+1])
-		if chch in setChChEat:
-			strIn = strIn[:iCh] + strIn[iCh+2:]
-			#if len(strIn) < cChProg:
-			#print 'ate', ''.join(chch), 'at pos', iCh, 'len now', len(strIn), 'str now', strIn[:10], '...', strIn[iCh-5:iCh+5]
-			#	cChProg = len(strIn) - (len(strIn) % cChProgMod)				
-			if iCh > 0:
-				iCh -= 1
-		else:
-			iCh += 1
-
-	return len(strIn)
-
-def Day050(aStrIn):
-	print CChDay5Eater(aStrIn[0])
-	
-def Day055(aStrIn):
-	
-	cChBest = len(aStrIn[0])
-	
-	for dCh in range (0,26):
-		chLo = chr(ord('a') + dCh)
-		chUp = chr(ord('A') + dCh)
-		
-		strAll = aStrIn[0].replace(chLo, '')
-		strAll = strAll.replace(chUp, '')
-
-		cCh = CChDay5Eater(strAll)
-		
-		print chLo, cCh
-		
-		if cCh < cChBest:
-			cChBest = cCh
-	
-	print cChBest
-		
+SLoc = namedtuple('SLoc', ['x', 'y'])
 
 def Day060(aStrIn):
-	pass
+	pat = re.compile('^(\d+), (\d+)$')
+	
+	aLoc = []
+	
+	mpLocCh = {} if len(aStrIn) <= 26 else None
+	
+	for strIn in aStrIn:
+		x, y = [int(s) for s in pat.match(strIn).groups()]
+		
+		aLoc.append(SLoc(x, y))
+		
+		if mpLocCh is not None:
+			mpLocCh[aLoc[-1]] = chr(ord('a') + len(aLoc) - 1)
+		
+	locMin = aLoc[0]
+	locMax = aLoc[0]
+	
+	for loc in aLoc:
+		locMin = SLoc(min(locMin.x, loc.x), min(locMin.y, loc.y))
+		locMax = SLoc(max(locMax.x, loc.x), max(locMax.y, loc.y))
+		
+	# expand one cell around limits
+		
+	locMin = SLoc(locMin.x - 1, locMin.y - 1)
+	locMax = SLoc(locMax.x + 1, locMax.y + 1)
+	
+	aX = range(locMin.x, locMax.x + 1)
+	aY = range(locMin.y, locMax.y + 1)
+	
+	print 'len:', len(aLoc)		
+	print 'min:', locMin
+	print 'max:', locMax
+	
+	mpXyLocD = {}
+	
+	for x in aX:
+		if mpLocCh is None:
+			print 'collect:', x
+		for y in aY:
+			mpXyLocD[(x, y)]= {}
+			mpLocD = mpXyLocD[(x, y)]
+			for loc in aLoc:
+				mpLocD[loc] = abs(x - loc.x) + abs(y - loc.y)
+				
+	mpLocCHit = {}
+	setLocInf = set()
+	mpXyLocBest = {}
+	
+	for x in aX:
+		if mpLocCh is None:
+			print 'compare:', x
+		for y in aY:
+			mpLocD = mpXyLocD[(x, y)]
+			aDLoc = sorted([(d, loc) for loc, d in mpLocD.iteritems()])
+			if aDLoc[0][0] == aDLoc[1][0]:
+				continue
+			d, loc = aDLoc[0]
+			mpXyLocBest[(x,y)] = loc
+			#print ' found:', d, loc
+			mpLocCHit.setdefault(loc, 0)
+			mpLocCHit[loc] += 1
+			
+			if x == locMin.x or x == locMax.x or y == locMin.y or y == locMax.y:
+				setLocInf.add(loc)
 
+	if mpLocCh is not None:
+		for y in aY:
+			for x in aX:
+				try:
+					locBest = mpXyLocBest[(x, y)]
+					ch = mpLocCh[locBest]
+					if locBest == SLoc(x, y):
+						ch = ch.upper()
+				except KeyError:
+					ch = '.'
+					
+				print ch,
+				
+			print
+					
+
+	setLocFin = set(mpLocCHit.keys()) - setLocInf
+	
+	aCHitLoc = sorted([(mpLocCHit[loc], loc) for loc in setLocFin])
+	
+	cHitMost, locMost = aCHitLoc[-1]
+	
+	print 'cHitMost:', cHitMost
+	print 'locMost:', locMost
+
+	if mpLocCh is not None:	
+		print 'chMost:', mpLocCh[locMost]
+			
 def Day065(aStrIn):
-	pass
-
+	pat = re.compile('^(\d+), (\d+)$')
+	
+	aLoc = []
+	
+	mpLocCh = {} if len(aStrIn) <= 26 else None
+	
+	for strIn in aStrIn:
+		x, y = [int(s) for s in pat.match(strIn).groups()]
+		
+		aLoc.append(SLoc(x, y))
+		
+		if mpLocCh is not None:
+			mpLocCh[aLoc[-1]] = chr(ord('a') + len(aLoc) - 1)
+			
+	setLoc = set(aLoc)
+		
+	locMin = aLoc[0]
+	locMax = aLoc[0]
+	
+	for loc in aLoc:
+		locMin = SLoc(min(locMin.x, loc.x), min(locMin.y, loc.y))
+		locMax = SLoc(max(locMax.x, loc.x), max(locMax.y, loc.y))
+		
+	# expand one cell around limits
+		
+	locMin = SLoc(locMin.x - 1, locMin.y - 1)
+	locMax = SLoc(locMax.x + 1, locMax.y + 1)
+	
+	aX = range(locMin.x, locMax.x + 1)
+	aY = range(locMin.y, locMax.y + 1)
+	
+	print 'len:', len(aLoc)		
+	print 'min:', locMin
+	print 'max:', locMax
+	
+	mpXyLocD = {}
+	mpXyDTot = {}
+	
+	for x in aX:
+		if mpLocCh is None:
+			print 'collect:', x
+		for y in aY:
+			mpXyLocD[(x, y)]= {}
+			mpLocD = mpXyLocD[(x, y)]
+			mpXyDTot[(x, y)] = 0
+			for loc in aLoc:
+				d = abs(x - loc.x) + abs(y - loc.y)
+				mpLocD[loc] = d
+				mpXyDTot[(x, y)] += d
+	
+	if mpLocCh is not None:
+		for y in aY:
+			for x in aX:
+				try:
+					ch = mpLocCh[SLoc(x, y)].upper()
+				except KeyError:
+					dTot = mpXyDTot[(x, y)]
+					ch = '#' if dTot < 32 else '.'
+					
+				print ch,
+				
+			print
+			
+	cXyOk = 0
+	
+	for y in aY:
+		for x in aX:
+			if mpXyDTot[(x, y)] < 10000:
+				cXyOk += 1
+				
+	print 'cXyOk:', cXyOk
+	
 def Day070(aStrIn):
 	pass
 
@@ -454,6 +571,52 @@ def Day045(aStrIn):
 	
 	print 'answer:', guardMost * minuteMost
 
+def CChDay5Eater(strIn):
+	setChChEat = \
+		set(zip('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
+				'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'))
+				
+	cChProgMod = 1000
+	cChProg = len(strIn) - (len(strIn) % cChProgMod)
+	
+	iCh = 0
+	while iCh < len(strIn) - 1:
+		chch = (strIn[iCh], strIn[iCh+1])
+		if chch in setChChEat:
+			strIn = strIn[:iCh] + strIn[iCh+2:]
+			#if len(strIn) < cChProg:
+			#print 'ate', ''.join(chch), 'at pos', iCh, 'len now', len(strIn), 'str now', strIn[:10], '...', strIn[iCh-5:iCh+5]
+			#	cChProg = len(strIn) - (len(strIn) % cChProgMod)				
+			if iCh > 0:
+				iCh -= 1
+		else:
+			iCh += 1
+
+	return len(strIn)
+
+def Day050(aStrIn):
+	print CChDay5Eater(aStrIn[0])
+	
+def Day055(aStrIn):
+	
+	cChBest = len(aStrIn[0])
+	
+	for dCh in range (0,26):
+		chLo = chr(ord('a') + dCh)
+		chUp = chr(ord('A') + dCh)
+		
+		strAll = aStrIn[0].replace(chLo, '')
+		strAll = strAll.replace(chUp, '')
+
+		cCh = CChDay5Eater(strAll)
+		
+		print chLo, cCh
+		
+		if cCh < cChBest:
+			cChBest = cCh
+	
+	print cChBest
+		
 mpDayFn = {
 	'000': Day000,
 	'010': Day010,
