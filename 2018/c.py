@@ -1,182 +1,71 @@
 import re
+import sys
 from collections import namedtuple
 
 aDayInDayFn = (
 #	(0, '000'),
-	(6, '065'),
+	(7, '070'),
 )
 
-SLoc = namedtuple('SLoc', ['x', 'y'])
+class C07Node:
+	def __init__(self, let):
+		self.let = let
+		self.setLetPrev = set()
+		self.setLetNext = set()
 
-def Day060(aStrIn):
-	pat = re.compile('^(\d+), (\d+)$')
-	
-	aLoc = []
-	
-	mpLocCh = {} if len(aStrIn) <= 26 else None
-	
-	for strIn in aStrIn:
-		x, y = [int(s) for s in pat.match(strIn).groups()]
-		
-		aLoc.append(SLoc(x, y))
-		
-		if mpLocCh is not None:
-			mpLocCh[aLoc[-1]] = chr(ord('a') + len(aLoc) - 1)
-		
-	locMin = aLoc[0]
-	locMax = aLoc[0]
-	
-	for loc in aLoc:
-		locMin = SLoc(min(locMin.x, loc.x), min(locMin.y, loc.y))
-		locMax = SLoc(max(locMax.x, loc.x), max(locMax.y, loc.y))
-		
-	# expand one cell around limits
-		
-	locMin = SLoc(locMin.x - 1, locMin.y - 1)
-	locMax = SLoc(locMax.x + 1, locMax.y + 1)
-	
-	aX = range(locMin.x, locMax.x + 1)
-	aY = range(locMin.y, locMax.y + 1)
-	
-	print 'len:', len(aLoc)		
-	print 'min:', locMin
-	print 'max:', locMax
-	
-	mpXyLocD = {}
-	
-	for x in aX:
-		if mpLocCh is None:
-			print 'collect:', x
-		for y in aY:
-			mpXyLocD[(x, y)]= {}
-			mpLocD = mpXyLocD[(x, y)]
-			for loc in aLoc:
-				mpLocD[loc] = abs(x - loc.x) + abs(y - loc.y)
-				
-	mpLocCHit = {}
-	setLocInf = set()
-	mpXyLocBest = {}
-	
-	for x in aX:
-		if mpLocCh is None:
-			print 'compare:', x
-		for y in aY:
-			mpLocD = mpXyLocD[(x, y)]
-			aDLoc = sorted([(d, loc) for loc, d in mpLocD.iteritems()])
-			if aDLoc[0][0] == aDLoc[1][0]:
-				continue
-			d, loc = aDLoc[0]
-			mpXyLocBest[(x,y)] = loc
-			#print ' found:', d, loc
-			mpLocCHit.setdefault(loc, 0)
-			mpLocCHit[loc] += 1
-			
-			if x == locMin.x or x == locMax.x or y == locMin.y or y == locMax.y:
-				setLocInf.add(loc)
+class C07Dag:
+	def __init__(self):
+		self.mpLetNode = {}
 
-	if mpLocCh is not None:
-		for y in aY:
-			for x in aX:
-				try:
-					locBest = mpXyLocBest[(x, y)]
-					ch = mpLocCh[locBest]
-					if locBest == SLoc(x, y):
-						ch = ch.upper()
-				except KeyError:
-					ch = '.'
-					
-				print ch,
-				
-			print
-					
+	def AddDep(self, letPrev, letNext):
+		nodePrev = self.mpLetNode.setdefault(letPrev, C07Node(letPrev))
+		nodePrev.setLetNext.add(letNext)
 
-	setLocFin = set(mpLocCHit.keys()) - setLocInf
-	
-	aCHitLoc = sorted([(mpLocCHit[loc], loc) for loc in setLocFin])
-	
-	cHitMost, locMost = aCHitLoc[-1]
-	
-	print 'cHitMost:', cHitMost
-	print 'locMost:', locMost
+		nodeNext = self.mpLetNode.setdefault(letNext, C07Node(letNext))
+		nodeNext.setLetPrev.add(letPrev)
 
-	if mpLocCh is not None:	
-		print 'chMost:', mpLocCh[locMost]
-			
-def Day065(aStrIn):
-	pat = re.compile('^(\d+), (\d+)$')
-	
-	aLoc = []
-	
-	mpLocCh = {} if len(aStrIn) <= 26 else None
-	
-	for strIn in aStrIn:
-		x, y = [int(s) for s in pat.match(strIn).groups()]
-		
-		aLoc.append(SLoc(x, y))
-		
-		if mpLocCh is not None:
-			mpLocCh[aLoc[-1]] = chr(ord('a') + len(aLoc) - 1)
-			
-	setLoc = set(aLoc)
-		
-	locMin = aLoc[0]
-	locMax = aLoc[0]
-	
-	for loc in aLoc:
-		locMin = SLoc(min(locMin.x, loc.x), min(locMin.y, loc.y))
-		locMax = SLoc(max(locMax.x, loc.x), max(locMax.y, loc.y))
-		
-	# expand one cell around limits
-		
-	locMin = SLoc(locMin.x - 1, locMin.y - 1)
-	locMax = SLoc(locMax.x + 1, locMax.y + 1)
-	
-	aX = range(locMin.x, locMax.x + 1)
-	aY = range(locMin.y, locMax.y + 1)
-	
-	print 'len:', len(aLoc)		
-	print 'min:', locMin
-	print 'max:', locMax
-	
-	mpXyLocD = {}
-	mpXyDTot = {}
-	
-	for x in aX:
-		if mpLocCh is None:
-			print 'collect:', x
-		for y in aY:
-			mpXyLocD[(x, y)]= {}
-			mpLocD = mpXyLocD[(x, y)]
-			mpXyDTot[(x, y)] = 0
-			for loc in aLoc:
-				d = abs(x - loc.x) + abs(y - loc.y)
-				mpLocD[loc] = d
-				mpXyDTot[(x, y)] += d
-	
-	if mpLocCh is not None:
-		for y in aY:
-			for x in aX:
-				try:
-					ch = mpLocCh[SLoc(x, y)].upper()
-				except KeyError:
-					dTot = mpXyDTot[(x, y)]
-					ch = '#' if dTot < 32 else '.'
-					
-				print ch,
-				
-			print
-			
-	cXyOk = 0
-	
-	for y in aY:
-		for x in aX:
-			if mpXyDTot[(x, y)] < 10000:
-				cXyOk += 1
-				
-	print 'cXyOk:', cXyOk
-	
+	def Remove(self, let):
+		try:
+			node = self.mpLetNode[let]
+		except KeyError:
+			return
+
+		for letPrev in node.setLetPrev:
+			nodePrev = self.mpLetNode[letPrev]
+			nodePrev.setLetNext.remove(let)
+
+		for letNext in node.setLetNext:
+			nodeNext = self.mpLetNode[letNext]
+			nodeNext.setLetPrev.remove(let)
+
+		del self.mpLetNode[let]
+
+	def LetLeast(self):
+
+		aCPrevLet = sorted([(len(node.setLetPrev), let) for let, node in self.mpLetNode.iteritems()])
+
+		cPrev, let = aCPrevLet[0]
+
+		assert cPrev == 0
+
+		return let
+
 def Day070(aStrIn):
-	pass
+	pat = re.compile('^Step (.) must be finished before step (.) can begin\.$')
+	
+	dag = C07Dag()
+	
+	for strIn in aStrIn:
+		letPrev, letNext = pat.match(strIn).groups()
+		dag.AddDep(letPrev, letNext)
+
+	while dag.mpLetNode:
+		let = dag.LetLeast()
+		dag.Remove(let)
+		sys.stdout.write(let)
+
+	sys.stdout.flush()
+	print
 
 def Day075(aStrIn):
 	pass
@@ -617,6 +506,175 @@ def Day055(aStrIn):
 	
 	print cChBest
 		
+SLoc = namedtuple('SLoc', ['x', 'y'])
+
+def Day060(aStrIn):
+	pat = re.compile('^(\d+), (\d+)$')
+	
+	aLoc = []
+	
+	mpLocCh = {} if len(aStrIn) <= 26 else None
+	
+	for strIn in aStrIn:
+		x, y = [int(s) for s in pat.match(strIn).groups()]
+		
+		aLoc.append(SLoc(x, y))
+		
+		if mpLocCh is not None:
+			mpLocCh[aLoc[-1]] = chr(ord('a') + len(aLoc) - 1)
+		
+	locMin = aLoc[0]
+	locMax = aLoc[0]
+	
+	for loc in aLoc:
+		locMin = SLoc(min(locMin.x, loc.x), min(locMin.y, loc.y))
+		locMax = SLoc(max(locMax.x, loc.x), max(locMax.y, loc.y))
+		
+	# expand one cell around limits
+		
+	locMin = SLoc(locMin.x - 1, locMin.y - 1)
+	locMax = SLoc(locMax.x + 1, locMax.y + 1)
+	
+	aX = range(locMin.x, locMax.x + 1)
+	aY = range(locMin.y, locMax.y + 1)
+	
+	print 'len:', len(aLoc)		
+	print 'min:', locMin
+	print 'max:', locMax
+	
+	mpXyLocD = {}
+	
+	for x in aX:
+		if mpLocCh is None:
+			print 'collect:', x
+		for y in aY:
+			mpXyLocD[(x, y)]= {}
+			mpLocD = mpXyLocD[(x, y)]
+			for loc in aLoc:
+				mpLocD[loc] = abs(x - loc.x) + abs(y - loc.y)
+				
+	mpLocCHit = {}
+	setLocInf = set()
+	mpXyLocBest = {}
+	
+	for x in aX:
+		if mpLocCh is None:
+			print 'compare:', x
+		for y in aY:
+			mpLocD = mpXyLocD[(x, y)]
+			aDLoc = sorted([(d, loc) for loc, d in mpLocD.iteritems()])
+			if aDLoc[0][0] == aDLoc[1][0]:
+				continue
+			d, loc = aDLoc[0]
+			mpXyLocBest[(x,y)] = loc
+			#print ' found:', d, loc
+			mpLocCHit.setdefault(loc, 0)
+			mpLocCHit[loc] += 1
+			
+			if x == locMin.x or x == locMax.x or y == locMin.y or y == locMax.y:
+				setLocInf.add(loc)
+
+	if mpLocCh is not None:
+		for y in aY:
+			for x in aX:
+				try:
+					locBest = mpXyLocBest[(x, y)]
+					ch = mpLocCh[locBest]
+					if locBest == SLoc(x, y):
+						ch = ch.upper()
+				except KeyError:
+					ch = '.'
+					
+				print ch,
+				
+			print
+					
+
+	setLocFin = set(mpLocCHit.keys()) - setLocInf
+	
+	aCHitLoc = sorted([(mpLocCHit[loc], loc) for loc in setLocFin])
+	
+	cHitMost, locMost = aCHitLoc[-1]
+	
+	print 'cHitMost:', cHitMost
+	print 'locMost:', locMost
+
+	if mpLocCh is not None:	
+		print 'chMost:', mpLocCh[locMost]
+			
+def Day065(aStrIn):
+	pat = re.compile('^(\d+), (\d+)$')
+	
+	aLoc = []
+	
+	mpLocCh = {} if len(aStrIn) <= 26 else None
+	
+	for strIn in aStrIn:
+		x, y = [int(s) for s in pat.match(strIn).groups()]
+		
+		aLoc.append(SLoc(x, y))
+		
+		if mpLocCh is not None:
+			mpLocCh[aLoc[-1]] = chr(ord('a') + len(aLoc) - 1)
+			
+	setLoc = set(aLoc)
+		
+	locMin = aLoc[0]
+	locMax = aLoc[0]
+	
+	for loc in aLoc:
+		locMin = SLoc(min(locMin.x, loc.x), min(locMin.y, loc.y))
+		locMax = SLoc(max(locMax.x, loc.x), max(locMax.y, loc.y))
+		
+	# expand one cell around limits
+		
+	locMin = SLoc(locMin.x - 1, locMin.y - 1)
+	locMax = SLoc(locMax.x + 1, locMax.y + 1)
+	
+	aX = range(locMin.x, locMax.x + 1)
+	aY = range(locMin.y, locMax.y + 1)
+	
+	print 'len:', len(aLoc)		
+	print 'min:', locMin
+	print 'max:', locMax
+	
+	mpXyLocD = {}
+	mpXyDTot = {}
+	
+	for x in aX:
+		if mpLocCh is None:
+			print 'collect:', x
+		for y in aY:
+			mpXyLocD[(x, y)]= {}
+			mpLocD = mpXyLocD[(x, y)]
+			mpXyDTot[(x, y)] = 0
+			for loc in aLoc:
+				d = abs(x - loc.x) + abs(y - loc.y)
+				mpLocD[loc] = d
+				mpXyDTot[(x, y)] += d
+	
+	if mpLocCh is not None:
+		for y in aY:
+			for x in aX:
+				try:
+					ch = mpLocCh[SLoc(x, y)].upper()
+				except KeyError:
+					dTot = mpXyDTot[(x, y)]
+					ch = '#' if dTot < 32 else '.'
+					
+				print ch,
+				
+			print
+			
+	cXyOk = 0
+	
+	for y in aY:
+		for x in aX:
+			if mpXyDTot[(x, y)] < 10000:
+				cXyOk += 1
+				
+	print 'cXyOk:', cXyOk
+	
 mpDayFn = {
 	'000': Day000,
 	'010': Day010,
