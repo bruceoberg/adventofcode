@@ -15,9 +15,14 @@
         "9.txt"))
 
 (define lStrFile (file->lines pathData))
+
+; part 1
+
 (define lNFile (map string->number lStrFile))
 (define cnWin (first lNFile))
 (define lN (rest lNFile))
+(define vN (list->vector lN))
+(define cN (length lN))
 (define-values (lNCur lNRemain) (split-at lN cnWin))
 (define vNCur (list->vector lNCur))
 
@@ -40,11 +45,7 @@
                     (set-add! setIj ij)
 
                     (go mpSumSetIj lIjNext)
-                )
-            )
-        )
-    )
-)
+                )))))
 
 (define (UpdateMp iN n)
     (define lIj (hash-ref mpILIj iN))
@@ -65,23 +66,46 @@
     (set-empty? (hash-ref mpSumSetIj n (set)))
 )
 
-(let go ([lN lNRemain] [iN 0])
-    (cond
-        ([empty? lN] #f)
-        (else
-            (begin
-                (define n (first lN))
-                (define lNNext (rest lN))
-                (cond
-                    ([FIsNInvalid n] n)
-                    (else
-                        (begin
-                            (UpdateMp iN n)
-                            (go lNNext (modulo (add1 iN) cnWin))
-                        )
-                    )
-                ) 
+(define sumBad
+    (let go ([lN lNRemain] [iN 0])
+        (cond
+            ([empty? lN] #f)
+            (else
+                (begin
+                    (define n (first lN))
+                    (define lNNext (rest lN))
+                    (cond
+                        ([FIsNInvalid n] n)
+                        (else
+                            (begin
+                                (UpdateMp iN n)
+                                (go lNNext (modulo (add1 iN) cnWin))
+                            ))))))))
+
+sumBad
+
+; part 2
+
+(define res
+    (let go ([iNFirst 0] [iNLast 0] [sum (vector-ref vN 0)])
+        (define iNFirstBump (add1 iNFirst))
+        (define iNLastBump (add1 iNLast))
+        (cond
+            ([equal? sum sumBad]
+                (begin
+                    (define lNGood (vector->list (vector-copy vN iNFirst iNLastBump)))
+                    (define nMin (apply min lNGood))
+                    (define nMax (apply max lNGood))
+                    (append (list iNFirst iNLastBump nMin nMax (+ nMin nMax)) '()) ; lNGood)
+                )
             )
+            ([or (>= iNFirstBump cN) (>= iNLastBump cN)] #f)
+            ([and (> sum sumBad) (< iNFirst iNLast)]
+                (go iNFirstBump iNLast (- sum (vector-ref vN iNFirst))))
+            (else
+                (go iNFirst iNLastBump (+ sum (vector-ref vN iNLastBump))))
         )
     )
 )
+
+res
