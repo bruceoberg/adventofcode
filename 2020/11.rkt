@@ -23,7 +23,7 @@
          racket/performance-hint
          racket/vector)
 
-(struct SDish (dX dY aBCur aBNxt mpIBLIBAdj) #:mutable)
+(struct SDish (dX dY aBCur aBNxt mpIBVLIBAdj) #:mutable)
 
 (define (make-aB dX dY) (make-bytes (* dX dY)))
 (define (make-iB dY x y) (unsafe-fx+ (unsafe-fx* dY x) y))
@@ -34,18 +34,22 @@
 (define-inline (aB-raw-ref aB iB)
   (unsafe-bytes-ref aB iB))
 
-(define (MpIBLIBAdj dX dY)
+(define (MpIBVLIBAdj dX dY)
     (define lXyAll (for*/list ([x (in-range -1 2)] [y (in-range -1 2)]) (cons x y)))
     (define lXyAdj (filter (lambda (xy) (or (not (zero? (car xy))) (not (zero? (cdr xy))))) lXyAll))
     (define (FXyOk xy)
       (define x (car xy))
       (define y (cdr xy))
       (and (>= x 0) (< x dX) (>= y 0) (< y dY)))
+    (define (IbFromXy xy) (make-iB dY (car xy) (cdr xy)))
     (for*/vector ([x (in-range dX)] [y (in-range dY)])
-      (define lXyNear (map (lambda (xy) (cons (+ x (car xy)) (+ y (cdr xy)))) lXyAdj))
-      (define lXyOk (filter FXyOk lXyNear))
-      (define (IbFromXy xy) (make-iB dY (car xy) (cdr xy)))
-      (list->vector (map IbFromXy lXyOk))))
+      (for/vector ([xyAdj lXyAdj])
+        (define (XyAdd xy1 xy2) (cons (+ (car xy1) (car xy2)) (+ (cdr xy1) (cdr xy2))))
+        (let go ([xyCur (cons x y)] [lXyRun '()])
+            (define xyNext (XyAdd xyCur xyAdj))
+            (cond
+                ([FXyOk xyNext] (go xyNext (cons xyNext lXyRun)))
+                (else (reverse (map IbFromXy lXyRun))))))))
 
 (define (lstring->dish lStr)
   (define dX (length lStr))
@@ -64,19 +68,20 @@
     ;(displayln ""
   )
 
-  (define mpIBLIBAdj (MpIBLIBAdj dX dY))
+  (define mpIBVLIBAdj (MpIBVLIBAdj dX dY))
 
-  (SDish dX dY aBCur aBNxt mpIBLIBAdj))
+  (SDish dX dY aBCur aBNxt mpIBVLIBAdj))
 
-(define-inline (CBAlive aB dX dY mpIBLIBAdj x y)
-  (let ([cBAlive 0])
-    (for ([iBNear (unsafe-vector-ref mpIBLIBAdj (make-iB dY x y))])
-      (when (unsafe-fx= (aB-raw-ref aB iBNear) 1)
+(define-inline (CBAlive aB dX dY mpIBVLIBAdj x y)
+  (let ([cBAlive 0] [vliBRun (unsafe-vector-ref mpIBVLIBAdj (make-iB dY x y))])
+    (for ([liBRun vliBRun])
+      (define liBSeat (filter (lambda (iBRun) (not (unsafe-fx= (aB-raw-ref aB iBRun) 255))) liBRun))
+      (when (and (not (empty? liBSeat)) (unsafe-fx= (aB-raw-ref aB (car liBSeat)) 1))
         (set! cBAlive (unsafe-fx+ 1 cBAlive))))
     cBAlive))
 
 (define (dish-tick dish fDebug)
-  (match-define (SDish dX dY aBCur aBNxt mpIBLIBAdj) dish)
+  (match-define (SDish dX dY aBCur aBNxt mpIBVLIBAdj) dish)
   (when fDebug
     (displayln (bytes->list aBCur))
     (newline)
@@ -84,15 +89,15 @@
   (for* ([x (in-range dX)]
          [y (in-range dY)])
     (define tfnOld (aB-ref aBCur dY x y))
-    (define cBAlive (CBAlive aBCur dX dY mpIBLIBAdj x y))
+    (define cBAlive (CBAlive aBCur dX dY mpIBVLIBAdj x y))
     (define tfnNew
       (cond
         ([unsafe-fx= tfnOld 0] (if (unsafe-fx= cBAlive 0) 1 0))
-        ([unsafe-fx= tfnOld 1] (if (unsafe-fx>= cBAlive 4) 0 1))
+        ([unsafe-fx= tfnOld 1] (if (unsafe-fx>= cBAlive 5) 0 1))
         (else 255)))
     (when fDebug
         (define iB (make-iB dY x y))
-        (define lIBAdj (unsafe-vector-ref mpIBLIBAdj iB))
+        (define lIBAdj (unsafe-vector-ref mpIBVLIBAdj iB))
         (displayln iB)
         (displayln tfnOld)
         (displayln lIBAdj)
@@ -109,7 +114,8 @@
   (bytes=? aBCur aBNxt))
 
 (define (dish-display dish)
- (match-define (SDish dX dY aBCur _ _) dish)
+ (match-define (SDish dX dY aBCur aBNxt mpIBVLIBAdj) dish)
+ ; (displayln (vector-take mpIBVLIBAdj 2))
  (for ([x (in-range dX)])
     (displayln 
         (list->string
@@ -125,20 +131,19 @@
 ;(displayln g_lStr)
 (define g_dish (lstring->dish g_lStr))
 
+; (dish-display g_dish)
+; (dish-tick g_dish #f)
+; (dish-display g_dish)
+; (dish-tick g_dish #f)
+; (dish-display g_dish)
+
 (let go ([dish g_dish])
 ;    (dish-display dish)
     (if (dish-tick dish #f) (void) (go dish))
 )
 
-(dish-display g_dish)
-; (dish-tick g_dish #f)
-; (dish-display g_dish)
-; (dish-tick g_dish #f)
-; (dish-display g_dish)
-
 (begin
  (match-define (SDish dX dY aBCur _ _) g_dish)
  (define lB (bytes->list aBCur))
- (define lBSeated (filter (lambda (b) (= b 1)) lB))
- (length lBSeated)
+ (count (lambda (b) (= b 1)) lB)
 )
