@@ -4,100 +4,129 @@
 
 (require racket/match
          racket/unsafe/ops
-         racket/performance-hint)
+         racket/performance-hint
+         racket/vector)
 
-(struct dish (rows cols cur nxt) #:mutable)
+(struct SDish (dX dY aBCur aBNxt mpIBLIBAdj) #:mutable)
 
-(define (make-dishv rs cs)
-  (make-bytes (* rs cs)))
-(define-inline (dishv-set! dv rs i j ?)
-  (unsafe-bytes-set! dv (unsafe-fx+ i (unsafe-fx* rs j)) (if ? 1 0)))
-(define-inline (dishv-ref dv rs i j)
-  (unsafe-fx= 1 (unsafe-bytes-ref dv (unsafe-fx+ i (unsafe-fx* rs j)))))
+(define (make-aB dX dY) (make-bytes (* dX dY)))
+(define (make-iB dX x y) (unsafe-fx+ x (unsafe-fx* dX y)))
+(define-inline (aB-set! aB dX x y ?)
+  (unsafe-bytes-set! aB (make-iB dX x y) (if ? 1 0)))
+(define-inline (aB-ref aB dX x y)
+  (unsafe-fx= 1 (unsafe-bytes-ref aB (make-iB dX x y))))
+(define-inline (aB-raw-ref aB iB)
+  (unsafe-fx= 1 (unsafe-bytes-ref aB iB)))
 
-(define (string->dish s)
+(define (MpIBLIBAdj dX dY)
+    (define lXyAll (for*/list ([x (in-range -1 2)] [y (in-range -1 2)]) (cons x y)))
+    (define lXyAdj (filter (lambda (xy) (or (not (zero? (car xy))) (not (zero? (cdr xy))))) lXyAll))
+    (define (FXyOk xy)
+      (define x (car xy))
+      (define y (cdr xy))
+      (and (>= x 0) (< x dX) (>= y 0) (< y dY)))
+    (for*/vector ([x (in-range dX)] [y (in-range dY)])
+      (define lXyNear (map (lambda (xy) (cons (+ x (car xy)) (+ y (cdr xy)))) lXyAdj))
+      (define lXyOk (filter FXyOk lXyNear))
+      (define (IbFromXy xy) (make-iB dX (car xy) (cdr xy)))
+      (list->vector (map IbFromXy lXyOk))))
+
+(define (string->dish str)
   (local-require racket/string)
-  (define rows (string-split s))
-  (define rs
-    (* 2 (length rows)))
-  (define cs
-    (* 1 (apply max (map string-length rows))))
-  (define cur (make-dishv rs cs))
-  (define nxt (make-dishv rs cs))
+  (define lStr (string-split str))
+  (define dX
+    (* 1 (length lStr)))
+  (define dY
+    (* 1 (apply max (map string-length lStr))))
+  (define aBCur (make-aB dX dY))
+  (define aBNxt (make-aB dX dY))
 
-  (for ([i (in-naturals)]
-        [r (in-list rows)])
-    (for ([j (in-naturals)]
-          [c (in-string r)])
-      (dishv-set! cur rs i j (char=? #\O c))))
+  (for ([x (in-naturals)]
+        [str (in-list lStr)])
+    (for ([y (in-naturals)]
+          [ch (in-string str)])
+      (aB-set! aBCur dX x y (char=? #\O ch))))
 
-  (dish rs cs cur nxt))
+  (define mpIBLIBAdj (MpIBLIBAdj dX dY))
+
+  (SDish dX dY aBCur aBNxt mpIBLIBAdj))
+
+(define (tick-alt dish)
+  (match-define (SDish dX dY aBCur aBNxt mpIBLIBAdj) dish)
+  (displayln (vector-take-right mpIBLIBAdj 3)))
+
+(define-inline (CBAlive2 aB dX dY mpIBLIBAdj x y)
+  (let ([cBAlive 0])
+    (for ([iBNear (unsafe-vector-ref mpIBLIBAdj (make-iB dX x y))])
+      (when (aB-raw-ref aB iBNear)
+        (set! cBAlive (unsafe-fx+ 1 cBAlive))))
+    cBAlive))
 
 (define-syntax-rule (unsafe-between min x max)
   (and (unsafe-fx<= min x)
        (unsafe-fx< x max)))
-(define-inline (neighbors gv rs cs i j)
-  (let ([cnt 0])
-    (for ([di (in-range -1 +2)])
-      (let ([ni (unsafe-fx+ di i)])
-        (when (unsafe-between 0 ni rs)
-          (for ([dj (in-range -1 +2)])
-            (unless (and (unsafe-fx= di 0) (unsafe-fx= dj 0))
-              (let ([nj (unsafe-fx+ dj j)])
-                (when (and (unsafe-between 0 nj cs)
-                           (dishv-ref gv rs ni nj))
-                  (set! cnt (unsafe-fx+ 1 cnt)))))))))
-    cnt))
+(define-inline (CBAlive aB dX dY mpIBLIBAdj x y)
+  (let ([cBAlive 0])
+    (for ([dXNear (in-range -1 +2)])
+      (let ([xNear (unsafe-fx+ dXNear x)])
+        (when (unsafe-between 0 xNear dX)
+          (for ([dYNear (in-range -1 +2)])
+            (unless (and (unsafe-fx= dXNear 0) (unsafe-fx= dYNear 0))
+              (let ([yNear (unsafe-fx+ dYNear y)])
+                (when (and (unsafe-between 0 yNear dY)
+                           (aB-ref aB dX xNear yNear))
+                  (set! cBAlive (unsafe-fx+ 1 cBAlive)))))))))
+    cBAlive))
 
-(define (tick d)
-  (match-define (dish rs cs cur nxt) d)
-  (for* ([i (in-range rs)]
-         [j (in-range cs)])
-    (define alive? (dishv-ref cur rs i j))
-    (define ns (neighbors cur rs cs i j))
+(define (tick dish fnCBAlive)
+  (match-define (SDish dX dY aBCur aBNxt mpIBLIBAdj) dish)
+  (for* ([x (in-range dX)]
+         [y (in-range dY)])
+    (define alive? (aB-ref aBCur dX x y))
+    (define cBAlive (fnCBAlive aBCur dX dY mpIBLIBAdj x y))
     (define new-alive?
-      (or (and alive? (or (unsafe-fx= ns 2) (unsafe-fx= ns 3)))
-          (and (not alive?) (unsafe-fx= ns 3))))
-    (dishv-set! nxt rs i j new-alive?))
-  (set-dish-cur! d nxt)
-  (set-dish-nxt! d cur)
-  d)
+      (or (and alive? (or (unsafe-fx= cBAlive 2) (unsafe-fx= cBAlive 3)))
+          (and (not alive?) (unsafe-fx= cBAlive 3))))
+    (aB-set! aBNxt dX x y new-alive?))
+  (set-SDish-aBCur! dish aBNxt)
+  (set-SDish-aBNxt! dish aBCur)
+  dish)
 
 (module+ test-bench
   ;;      original: cpu time: 1843 real time: 1842 gc time: 36
-  ;; dishv-ref/set: cpu time: 1683 real time: 1682 gc time: 82
+  ;; aB-ref/set: cpu time: 1683 real time: 1682 gc time: 82
   ;;     neighbors: cpu time:  530 real time:  531 gc time: 0
-  (define (let-there-be-life s)
-    (define seed (string->dish s))
+  (define (let-there-be-life str)
+    (define seed (string->dish str))
     (collect-garbage)
     (collect-garbage)
     (time
      (for ([i (in-range 10000)])
-       (tick seed)))))
+       (tick seed CBAlive2)))))
 
 (module+ test
   (require 2htdp/universe
            2htdp/image)
 
-  (define (draw d)
-    (match-define (dish rs cs cur _) d)
+  (define (draw dish)
+    (match-define (SDish dX dY aBCur _ _) dish)
     (define SCALE 10)
     (define BOX
       (square SCALE "solid" "black"))
     (for*/fold ([img (empty-scene
-                      (* SCALE cs)
-                      (* SCALE rs))])
-        ([i (in-range rs)]
-         [j (in-range cs)])
-      (if (dishv-ref cur rs i j)
+                      (* SCALE dY)
+                      (* SCALE dX))])
+        ([x (in-range dX)]
+         [y (in-range dY)])
+      (if (aB-ref aBCur dX x y)
         (place-image BOX 
-                     (+ (/ SCALE 2) 0.5 (* j SCALE))
-                     (+ (/ SCALE 2) 0.5 (* i SCALE))
+                     (+ (/ SCALE 2) 0.5 (* y SCALE))
+                     (+ (/ SCALE 2) 0.5 (* x SCALE))
                      img)
         img)))
 
-  (define (let-there-be-life s)
-    (big-bang (string->dish s)
+  (define (let-there-be-life str)
+    (big-bang (string->dish str)
               [on-tick tick]
               [on-draw draw])))
 
