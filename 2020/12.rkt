@@ -13,7 +13,7 @@
 (define g_pathData
     (build-path
         g_pathCode
-        "12-.txt"))
+        "12.txt"))
 
 (define g_lStrFile (file->lines g_pathData))
 
@@ -27,20 +27,31 @@
 
 (define g_lInst (map InstFromStr g_lStrFile))
 
-(let ([pos 0+0i] [deg 0])
+(let ([pos 0+0i] [dPos 10+1i])
     (for ([inst g_lInst])
-        (printf "pos: ~v deg: ~v inst: ~v~n" pos deg inst)
+        (printf "pos: ~v dPos: ~v inst: ~v~n" pos dPos inst)
         (match (SInst-chOp inst)
-            ("N" (set! pos (+ pos (* (SInst-nArg inst) +0+1i))))
-            ("S" (set! pos (+ pos (* (SInst-nArg inst) +0-1i))))
-            ("E" (set! pos (+ pos (* (SInst-nArg inst) +1+0i))))
-            ("W" (set! pos (+ pos (* (SInst-nArg inst) -1+0i))))
-            ("L" (set! deg (+ deg (SInst-nArg inst))))
-            ("R" (set! deg (- deg (SInst-nArg inst))))
-            ("F" (set! pos (+ pos (make-polar (SInst-nArg inst) (degrees->radians deg)))))
+            ("N" (set! dPos (+ dPos (* (SInst-nArg inst) +0+1i))))
+            ("S" (set! dPos (+ dPos (* (SInst-nArg inst) +0-1i))))
+            ("E" (set! dPos (+ dPos (* (SInst-nArg inst) +1+0i))))
+            ("W" (set! dPos (+ dPos (* (SInst-nArg inst) -1+0i))))
+            ("L" (set! dPos (make-polar
+                                (magnitude dPos)
+                                (+
+                                    (angle dPos)
+                                    (degrees->radians
+                                        (SInst-nArg inst))))))
+            ("R" (set! dPos (make-polar
+                                (magnitude dPos)
+                                (-
+                                    (angle dPos)
+                                    (degrees->radians
+                                        (SInst-nArg inst))))))
+            ("F" (set! pos (+ pos (* (SInst-nArg inst) dPos))))
         )
         (set! pos (make-rectangular (round (real-part pos)) (round (imag-part pos))))
+        (set! dPos (make-rectangular (round (real-part dPos)) (round (imag-part dPos))))
     )
     (define man (+ (abs (real-part pos)) (abs (imag-part pos))))
-    (printf "pos: ~v deg: ~v man: ~v~n" pos deg man)
+    (printf "pos: ~v dPos: ~v man: ~v~n" pos dPos man)
 )
