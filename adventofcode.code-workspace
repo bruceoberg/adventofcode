@@ -3,5 +3,9 @@
 		{
 			"path": "."
 		}
-	]
+	],
+	"settings": {
+		"timeline.showView": true,
+		"timeline.excludeSources": []
+	}
 }
